@@ -9,8 +9,8 @@ from pygame.locals import (
     K_SPACE,
     KEYDOWN,
     QUIT,
-    RLEACCEL,
     MOUSEBUTTONDOWN,
+    RLEACCEL,
 )
 
 # Game settings
@@ -185,8 +185,9 @@ pygame.time.set_timer(ADDCLOUD, 1000)
 background = Background()
 
 # Load and play background music
-pygame.mixer.music.load("Apoxode_-_Electric_1.mp3")
-pygame.mixer.music.play(loops=-1)
+menu_music = pygame.mixer.music.load("Apoxode_-_Electric_1.mp3")
+game_music = pygame.mixer.music.load("sb_indreams.mp3")
+pygame.mixer.music.play(loops=-1, start=0)  # Start menu music
 
 # Load sound effects
 move_up_sound = pygame.mixer.Sound("Rising_putter.ogg")
@@ -204,9 +205,10 @@ points = 0  # Initialize points
 # Define game states
 START_MENU = "start_menu"
 GAME_RUNNING = "game_running"
+GAME_OVER = "game_over"
 current_state = START_MENU
 
-# Button class for start menu
+# Button class for menu and game over screens
 class Button:
     def __init__(self, text, width, height, pos, elevation):
         self.pressed = False
@@ -238,16 +240,16 @@ class Button:
     def check_click(self):
         mouse_pos = pygame.mouse.get_pos()
         if self.top_rect.collidepoint(mouse_pos):
-            if pygame.mouse.get_pressed()[0] == 1:
-                if not self.pressed:
-                    self.pressed = True
-                    return True
-        if pygame.mouse.get_pressed()[0] == 0:
-            self.pressed = False
+            if pygame.mouse.get_pressed()[0]:
+                self.dynamic_elecation = 0
+                return True
+            self.dynamic_elecation = self.elevation
         return False
 
-# Create start button
-start_button = Button("Start Game", 200, 50, (SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 - 25), 5)
+# Create buttons
+start_button = Button("Start", 200, 50, (SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 - 25), 5)
+return_to_menu_button = Button("Return to Menu", 200, 50, (SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 - 25), 5)
+exit_button = Button("Exit", 200, 50, (SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 + 25), 5)
 
 # Main game loop
 clock = pygame.time.Clock()
@@ -274,6 +276,8 @@ while running:
 
     if current_state == START_MENU:
         screen.fill((0, 0, 0))  # Fill screen with black
+        pygame.mixer.music.load("Apoxode_-_Electric_1.mp3")
+        pygame.mixer.music.play(loops=-1, start=0)  # Play menu music
 
         # Display game title
         title_font = pygame.font.Font(None, 74)
@@ -283,8 +287,12 @@ while running:
         # Draw start button
         if start_button.check_click():
             current_state = GAME_RUNNING  # Change state to start the game
+            pygame.mixer.music.stop()
+            pygame.mixer.music.load("sb_indreams.mp3")
+            pygame.mixer.music.play(loops=-1, start=0)  # Play game music
             start_time = pygame.time.get_ticks()  # Reset the start time when the game begins
             points = 0  # Reset points when starting a new game
+            player.lives = 3  # Reset player lives when starting a new game
 
         start_button.draw()
 
@@ -312,10 +320,12 @@ while running:
         # Check for collisions between player and enemies
         if pygame.sprite.spritecollideany(player, enemies):
             if not player.take_damage():
-                current_state = START_MENU  # Return to menu if the player dies
-                pygame.mixer.music.play(loops=-1)  # Restart the music when returning to menu
+                current_state = GAME_OVER  # Switch to game over screen
+                pygame.mixer.music.stop()
+                pygame.mixer.music.load("Apoxode_-_Electric_1.mp3")
+                pygame.mixer.music.play(loops=-1, start=0)  # Play menu music again
                 collision_sound.play()
-        
+
         # Draw the background first
         screen.blit(background.image, background.rect1)
         screen.blit(background.image, background.rect2)
@@ -333,6 +343,30 @@ while running:
         points_text = font.render(f"Points: {points}", True, (255, 255, 255))
         screen.blit(time_text, (10, 10))
         screen.blit(points_text, (10, 90))
+
+    elif current_state == GAME_OVER:
+        screen.fill((0, 0, 0))  # Fill screen with black
+
+        # Display game over text
+        game_over_font = pygame.font.Font(None, 74)
+        game_over_text = game_over_font.render("Game Over", True, (255, 0, 0))
+        screen.blit(game_over_text, (SCREEN_WIDTH//2 - game_over_text.get_width()//2, SCREEN_HEIGHT//4))
+
+        # Draw buttons
+        if return_to_menu_button.check_click():
+            current_state = START_MENU
+            points = 0  # Reset points when returning to menu
+            player.lives = 3  # Reset player lives when returning to menu
+            pygame.mixer.music.stop()
+            pygame.mixer.music.load("Apoxode_-_Electric_1.mp3")
+            pygame.mixer.music.play(loops=-1, start=0)  # Play menu music
+
+        if exit_button.check_click():
+            pygame.quit()
+            running = False
+
+        return_to_menu_button.draw()
+        exit_button.draw()
 
     pygame.display.flip()
     clock.tick(30)
