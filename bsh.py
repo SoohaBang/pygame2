@@ -10,6 +10,7 @@ from pygame.locals import (
     KEYDOWN,
     QUIT,
     RLEACCEL,
+    MOUSEBUTTONDOWN,
 )
 
 # Game settings
@@ -85,7 +86,6 @@ class Player(pygame.sprite.Sprite):
             self.lives -= 1
             self.immortal_time = self.immortal_duration
             if self.lives <= 0:
-                self.kill()  # Remove the player when lives reach 0
                 return False  # Indicate that the player has no lives left
         return True
 
@@ -164,7 +164,7 @@ pygame.mixer.init()
 
 # Create screen
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption('Jet Game')
+pygame.display.set_caption('Going Home')
 
 # Create sprite groups
 enemies = pygame.sprite.Group()
@@ -198,6 +198,57 @@ move_up_sound.set_volume(0.5)
 move_down_sound.set_volume(0.5)
 collision_sound.set_volume(0.5)
 
+start_time = pygame.time.get_ticks()
+points = 0  # Initialize points
+
+# Define game states
+START_MENU = "start_menu"
+GAME_RUNNING = "game_running"
+current_state = START_MENU
+
+# Button class for start menu
+class Button:
+    def __init__(self, text, width, height, pos, elevation):
+        self.pressed = False
+        self.elevation = elevation
+        self.dynamic_elecation = elevation
+        self.original_y_pos = pos[1]
+
+        self.top_rect = pygame.Rect(pos, (width, height))
+        self.top_color = "#475F77"
+
+        self.bottom_rect = pygame.Rect(pos, (width, height))
+        self.bottom_color = "#354B5E"
+
+        self.text_surf = pygame.font.Font(None, 30).render(text, True, "#FFFFFF")
+        self.text_rect = self.text_surf.get_rect(center=self.top_rect.center)
+
+    def draw(self):
+        # Elevation logic
+        self.top_rect.y = self.original_y_pos - self.dynamic_elecation
+        self.text_rect.center = self.top_rect.center
+
+        self.bottom_rect.midtop = self.top_rect.midtop
+        self.bottom_rect.height = self.top_rect.height + self.dynamic_elecation
+
+        pygame.draw.rect(screen, self.bottom_color, self.bottom_rect)
+        pygame.draw.rect(screen, self.top_color, self.top_rect)
+        screen.blit(self.text_surf, self.text_rect)
+
+    def check_click(self):
+        mouse_pos = pygame.mouse.get_pos()
+        if self.top_rect.collidepoint(mouse_pos):
+            if pygame.mouse.get_pressed()[0] == 1:
+                if not self.pressed:
+                    self.pressed = True
+                    return True
+        if pygame.mouse.get_pressed()[0] == 0:
+            self.pressed = False
+        return False
+
+# Create start button
+start_button = Button("Start Game", 200, 50, (SCREEN_WIDTH//2 - 100, SCREEN_HEIGHT//2 - 25), 5)
+
 # Main game loop
 clock = pygame.time.Clock()
 running = True
@@ -206,62 +257,85 @@ while running:
         if event.type == KEYDOWN:
             if event.key == K_ESCAPE:
                 running = False
-            if event.key == K_UP:
+            if event.key == K_UP and current_state == GAME_RUNNING:
                 player.jump()
-            if event.key == K_SPACE:
+            if event.key == K_SPACE and current_state == GAME_RUNNING:
                 player.shoot()
         elif event.type == QUIT:
             running = False
-        elif event.type == ADDENEMY:
+        elif event.type == ADDENEMY and current_state == GAME_RUNNING:
             new_enemy = Enemy()
             enemies.add(new_enemy)
             all_sprites.add(new_enemy)
-        elif event.type == ADDCLOUD:
+        elif event.type == ADDCLOUD and current_state == GAME_RUNNING:
             new_cloud = Cloud()
             clouds.add(new_cloud)
             all_sprites.add(new_cloud)
 
-    pressed_keys = pygame.key.get_pressed()
-    player.update(pressed_keys)
+    if current_state == START_MENU:
+        screen.fill((0, 0, 0))  # Fill screen with black
 
-    enemies.update()
-    clouds.update()
-    background.update() 
-    player_bullets.update()
+        # Display game title
+        title_font = pygame.font.Font(None, 74)
+        title_text = title_font.render("Going Home", True, (255, 255, 255))
+        screen.blit(title_text, (SCREEN_WIDTH//2 - title_text.get_width()//2, SCREEN_HEIGHT//4))
 
-    # Check for bullet collisions with enemies
-    for bullet in player_bullets:
-        if pygame.sprite.spritecollideany(bullet, enemies):
-            bullet.kill()
-            for enemy in enemies:
-                if pygame.sprite.collide_rect(bullet, enemy):
-                    enemy.kill()  # Remove enemy on collision
+        # Draw start button
+        if start_button.check_click():
+            current_state = GAME_RUNNING  # Change state to start the game
+            start_time = pygame.time.get_ticks()  # Reset the start time when the game begins
+            points = 0  # Reset points when starting a new game
 
-    # Check for collisions between player and enemies
-    if pygame.sprite.spritecollideany(player, enemies):
-        if not player.take_damage():
-            running = False  # End the game if the player has no lives left
-            collision_sound.play()
-    
-    # Draw the background first
-    screen.blit(background.image, background.rect1)
-    screen.blit(background.image, background.rect2)
+        start_button.draw()
 
-    # Draw all sprites on top of the background
-    for entity in all_sprites:
-        screen.blit(entity.surf, entity.rect)
-    
-    # Draw player lives
-    font = pygame.font.Font(None, 36)
-    lives_text = font.render(f"Lives: {player.lives}", True, (255, 255, 255))
-    screen.blit(lives_text, (10, 50))
+    elif current_state == GAME_RUNNING:
+        pressed_keys = pygame.key.get_pressed()
+        player.update(pressed_keys)
+
+        enemies.update()
+        clouds.update()
+        background.update() 
+        player_bullets.update()
+
+        # Update points based on time
+        current_time = pygame.time.get_ticks()
+        points = current_time - start_time
+
+        # Check for bullet collisions with enemies
+        for bullet in player_bullets:
+            if pygame.sprite.spritecollideany(bullet, enemies):
+                bullet.kill()
+                for enemy in enemies:
+                    if pygame.sprite.collide_rect(bullet, enemy):
+                        enemy.kill()  # Remove enemy on collision
+
+        # Check for collisions between player and enemies
+        if pygame.sprite.spritecollideany(player, enemies):
+            if not player.take_damage():
+                current_state = START_MENU  # Return to menu if the player dies
+                pygame.mixer.music.play(loops=-1)  # Restart the music when returning to menu
+                collision_sound.play()
+        
+        # Draw the background first
+        screen.blit(background.image, background.rect1)
+        screen.blit(background.image, background.rect2)
+
+        # Draw all sprites on top of the background
+        for entity in all_sprites:
+            screen.blit(entity.surf, entity.rect)
+        
+        # Draw player lives and points
+        font = pygame.font.Font(None, 36)
+        lives_text = font.render(f"Lives: {player.lives}", True, (255, 255, 255))
+        screen.blit(lives_text, (10, 50))
+        
+        time_text = font.render(f"Time: {(current_time - start_time) // 1000}s", True, (255, 255, 255))
+        points_text = font.render(f"Points: {points}", True, (255, 255, 255))
+        screen.blit(time_text, (10, 10))
+        screen.blit(points_text, (10, 90))
 
     pygame.display.flip()
     clock.tick(30)
-
-pygame.mixer.music.stop()
-pygame.mixer.quit()
-
 
 pygame.mixer.music.stop()
 pygame.mixer.quit()
